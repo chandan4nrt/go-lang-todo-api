@@ -67,3 +67,63 @@ func (h *TodoHandler) GetAllTodos(c *gin.Context) {
 	// 3. Return the result. If the list is empty, MongoDB returns an empty slice [].
 	c.JSON(http.StatusOK, todos)
 }
+
+// GetTodoById
+func (h *TodoHandler) GetTododByID(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	//searc param
+	id := c.Param("id")
+	objID, _ := primitive.ObjectIDFromHex(id)
+
+	var todo models.Todo
+	filter := bson.M{"_id": objID}
+
+	//no cursor here, direct decode
+	err := h.Col.FindOne(ctx, filter).Decode(&todo)
+
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(404, gin.H{"error": "Todo not found"})
+			return
+		}
+		c.JSON(500, gin.H{"error": "Databse error"})
+		return
+	}
+
+	c.JSON(200, todo)
+}
+
+//SearchTodos fetchs todos using title
+
+func (h *TodoHandler) SearchTodos(c *gin.Context) {
+	//1. Get the search term from the URL query: /search?title=Build
+	searchTerm := c.Query("title")
+	// 2. Create the regex pattern
+	// "i" means case-insensitive (matches 'build', 'Build', or 'BUILD')
+	filter := bson.M{
+		"title": primitive.Regex{
+			Pattern: searchTerm,
+			Options: "i",
+		},
+	}
+	var todos []models.Todo
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 3. Find and Decode
+	cursor, err := h.Col.Find(ctx, filter)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Search Failed!"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	if err := cursor.All(ctx, &todos); err != nil {
+		c.JSON(500, gin.H{"error": "Decoding Failed"})
+		return
+	}
+
+	c.JSON(200, todos)
+}

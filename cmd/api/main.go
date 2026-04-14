@@ -51,5 +51,9 @@ func main() {
 
 	router.GET("/todos", todoHandler.GetAllTodos)
 
+	router.GET("/todos/:id", todoHandler.GetTododByID)
+
+	router.GET("/search", todoHandler.SearchTodos)
+
 	router.Run(":" + os.Getenv("PORT"))
 }
