@@ -69,7 +69,7 @@ func (h *TodoHandler) GetAllTodos(c *gin.Context) {
 }
 
 // GetTodoById
-func (h *TodoHandler) GetTododByID(c *gin.Context) {
+func (h *TodoHandler) GetTodoByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	//searc param
@@ -126,4 +126,60 @@ func (h *TodoHandler) SearchTodos(c *gin.Context) {
 	}
 
 	c.JSON(200, todos)
+}
+
+// UpdateTodo handles the modification of an existing todo document in MongoDB
+func (h *TodoHandler) UpdateTodo(c *gin.Context) {
+
+	// 1. Extract the 'id' parameter from the URL (e.g., /todos/:id)
+	id := c.Param("id")
+	// 2. Convert the string ID into a MongoDB primitive.ObjectID
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	// 3. Create a variable to hold the request body data (usually just the 'completed' or 'title' fields)
+	var updateData struct {
+		Title     string `json:"title"`
+		Completed bool   `json:"completed"`
+	}
+
+	// 4. Bind the incoming JSON request to that variable and handle potential binding errors
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// 5. Create a context with a timeout to ensure the database operation doesn't hang
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 6. Define the 'filter' to locate the specific document by its _id
+	filter := bson.M{"_id": objID}
+
+	// 7. Define the 'update' operations using the $set operator (e.g., updating 'completed' and 'updated_at')
+	update := bson.M{
+		"$set": bson.M{
+			"title":      updateData.Title,
+			"completed":  updateData.Completed,
+			"updated_at": time.Now(),
+		},
+	}
+
+	// 8. Execute the UpdateOne command on the MongoDB collection
+	result, err := h.Col.UpdateOne(ctx, filter, update)
+
+	// 9. Check if the database operation itself failed (server down, etc.)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update todo"})
+		return
+	}
+
+	// 10. Check the 'MatchedCount' to see if a document with that ID actually existed
+	if result.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No todo found with that ID"})
+		return
+	}
+	// 11. Return a success status code and a confirmation message to the client
+	c.JSON(http.StatusOK, gin.H{"message": "Todo updated scucessfully"})
 }
