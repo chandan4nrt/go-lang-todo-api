@@ -47,7 +47,9 @@ func main() {
 	// 4. Setup Routes
 	router := gin.Default()
 
-	router.POST("/todos", todoHandler.CreateTodo) // We'll define this next
+	router.POST("/todos", todoHandler.CreateTodo)
+
+	router.GET("/todos", todoHandler.GetAllTodos)
 
 	router.Run(":" + os.Getenv("PORT"))
 }
